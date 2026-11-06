@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenCPN Sync</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icon.svg" alt="" width="28" height="28" />
+      <h1>OpenCPN Sync</h1>
+      <span id="peer-name" class="muted"></span>
+    </header>
+
+    <main>
+      <section aria-labelledby="h-peer">
+        <h2 id="h-peer">Send to</h2>
+        <div class="row">
+          <label for="peer-select" class="sr-only">OpenCPN computer</label>
+          <select id="peer-select"></select>
+          <button id="scan" type="button">Scan</button>
+        </div>
+        <div class="row">
+          <label for="peer-manual">or address</label>
+          <input id="peer-manual" type="text" placeholder="host or host:port" autocomplete="off" />
+        </div>
+        <div class="row">
+          <span id="pair-state" class="badge"></span>
+          <button id="pair" type="button">Pair</button>
+        </div>
+        <form id="pin-form" class="row" hidden>
+          <label for="pin">PIN shown in OpenCPN</label>
+          <input id="pin" inputmode="numeric" pattern="\d{4}" maxlength="4" size="5" autocomplete="off" required />
+          <button type="submit">Confirm</button>
+        </form>
+      </section>
+
+      <section aria-labelledby="h-routes">
+        <div class="section-head">
+          <h2 id="h-routes">Routes</h2>
+          <input id="filter" type="search" placeholder="Filter" aria-label="Filter routes and waypoints" />
+        </div>
+        <table>
+          <thead>
+            <tr><th class="check"><input id="all-routes" type="checkbox" aria-label="Select all routes" /></th><th>Name</th><th class="num">Length</th><th class="num">Points</th></tr>
+          </thead>
+          <tbody id="routes"></tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="h-wpts">
+        <h2 id="h-wpts">Waypoints</h2>
+        <table>
+          <thead>
+            <tr><th class="check"><input id="all-waypoints" type="checkbox" aria-label="Select all waypoints" /></th><th>Name</th><th>Description</th></tr>
+          </thead>
+          <tbody id="waypoints"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <footer>
+      <label><input id="force" type="checkbox" /> Replace existing in OpenCPN</label>
+      <label><input id="activate" type="checkbox" disabled /> Activate route</label>
+      <span id="selection" class="muted"></span>
+      <button id="send" type="button" class="primary" disabled>Send to OpenCPN</button>
+      <p id="message" role="status" aria-live="polite"></p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
