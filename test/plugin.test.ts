@@ -139,6 +139,31 @@ describe('plugin', () => {
     expect(fake.errors.some((e) => e.includes('No provider'))).toBe(true)
   }, 60_000)
 
+  it('does not require a bind address in the config schema', () => {
+    const schema = createPlugin(fake.app).schema as () => { required?: string[] }
+    expect(schema().required).not.toContain('bindAddress')
+  })
+
+  it.each([
+    ['missing', {}],
+    ['empty', { bindAddress: '' }],
+    ['blank', { bindAddress: '  ' }]
+  ])('listens on all interfaces when the bind address is %s', async (_label, config) => {
+    plugin = createPlugin(fake.app)
+    plugin.start({ port: 0, announceMdns: false, ...config }, () => {})
+    await vi.waitFor(
+      () => {
+        const s = fake.statuses.find((m) => m.startsWith('Listening on'))
+        if (!s) throw new Error(fake.errors.join('; ') || 'not started')
+        expect(s).toMatch(/^Listening on port \d+ as/)
+        port = Number(/port (\d+) as/.exec(s)![1])
+      },
+      { timeout: 30_000 }
+    )
+    const r = await call(port, '/api/get-version')
+    expect(r.json).toEqual({ version: '5.14.0' })
+  }, 60_000)
+
   it('stops the server on stop()', async () => {
     await startPlugin()
     await plugin.stop()

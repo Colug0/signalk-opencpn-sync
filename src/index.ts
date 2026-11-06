@@ -22,11 +22,14 @@ const ConfigSchema = Type.Object({
     minimum: 1,
     maximum: 65535
   }),
-  bindAddress: Type.String({
-    title: 'Bind address',
-    description: 'IP address to listen on. Empty listens on all interfaces.',
-    default: ''
-  }),
+  // Optional, because the admin UI drops an emptied text field from the
+  // saved config and would then reject a required one.
+  bindAddress: Type.Optional(
+    Type.String({
+      title: 'Bind address',
+      description: 'IP address to listen on. Leave empty to listen on all interfaces.'
+    })
+  ),
   peerName: Type.String({
     title: 'Peer name',
     description: 'Name shown in the peer list of OpenCPN\'s "Send to Peer" dialog. Must not start with "Portable".',
@@ -147,6 +150,7 @@ export default function (app: ServerAPI): Plugin {
 
     start: (settings: object) => {
       const config = { ...defaults(), ...(settings as Partial<Config>) }
+      const bindAddress = config.bindAddress?.trim() || undefined
       const run = ++generation
       void (async () => {
         try {
@@ -156,7 +160,7 @@ export default function (app: ServerAPI): Plugin {
           const tls = await loadOrCreateCertificate(dir, config.peerName)
           server = new PeerServer({
             port: config.port,
-            host: config.bindAddress || undefined,
+            host: bindAddress,
             tls,
             version: EMULATED_VERSION,
             keys,
@@ -181,7 +185,7 @@ export default function (app: ServerAPI): Plugin {
             return
           }
           if (config.announceMdns) mdns = announce(config.peerName, (msg) => app.debug(msg))
-          setStatus(`Listening on ${config.bindAddress ? `${config.bindAddress}:` : 'port '}${port} as "${config.peerName}"`)
+          setStatus(`Listening on ${bindAddress ? `${bindAddress}:` : 'port '}${port} as "${config.peerName}"`)
         } catch (error) {
           app.setPluginError(`Could not start: ${String(error)}`)
         }
@@ -202,5 +206,5 @@ export default function (app: ServerAPI): Plugin {
 }
 
 function defaults(): Config {
-  return { port: 8443, bindAddress: '', peerName: 'SignalK', announceMdns: true, requirePairing: true }
+  return { port: 8443, peerName: 'SignalK', announceMdns: true, requirePairing: true }
 }
