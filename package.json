@@ -1,12 +1,13 @@
 {
   "name": "signalk-opencpn-sync",
   "version": "0.0.0",
-  "description": "Receive routes and waypoints from OpenCPN \"Send to Peer\" and store them as Signal K resources",
+  "description": "Exchange routes and waypoints with OpenCPN via its \"Send to Peer\" protocol, in both directions",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "public"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -16,6 +17,7 @@
   },
   "keywords": [
     "signalk-node-server-plugin",
+    "signalk-webapp",
     "signalk-category-utility",
     "opencpn",
     "routes",
@@ -42,5 +44,9 @@
     "@types/node": "^24.0.0",
     "typescript": "~5.9.3",
     "vitest": "^4.1.12"
+  },
+  "signalk": {
+    "displayName": "OpenCPN Sync",
+    "appIcon": "./icon.svg"
   }
 }

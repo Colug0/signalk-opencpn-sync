@@ -109,7 +109,12 @@ const SK_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 export function resourceId(guid: string | undefined): string {
   if (!guid) return randomUUID()
   if (SK_UUID.test(guid)) return guid.toLowerCase()
-  const h = createHash('sha1').update(`opencpn-sync:${guid}`).digest('hex')
+  return derivedUuid(guid)
+}
+
+/** A stable UUID v4-shaped id derived from a seed string. */
+export function derivedUuid(seed: string): string {
+  const h = createHash('sha1').update(`opencpn-sync:${seed}`).digest('hex')
   const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16)
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`
 }
