@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Send to OpenCPN</title>
+    <link rel="stylesheet" href="app.css" />
+    <style>
+      body { padding: 0.8rem; }
+      .stack { display: grid; gap: 0.7rem; }
+      #what { font-weight: 600; }
+      select, input[type="text"] { width: 100%; }
+      .actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+      #message { min-height: 1.2em; margin: 0; }
+      #message.ok { color: var(--ok); }
+      #message.warn { color: var(--warn); }
+      #message.err { color: var(--err); }
+    </style>
+  </head>
+  <body>
+    <div class="stack">
+      <div id="what" class="muted">Choose "Send to OpenCPN" on a route or waypoint.</div>
+      <label for="peer">OpenCPN computer</label>
+      <select id="peer"></select>
+      <input id="manual" type="text" placeholder="or type host or host:port" autocomplete="off" aria-label="OpenCPN address" />
+      <label><input id="force" type="checkbox" /> Replace if it already exists</label>
+      <form id="pin-form" class="actions" hidden>
+        <label for="pin">PIN shown in OpenCPN</label>
+        <input id="pin" inputmode="numeric" maxlength="4" size="5" autocomplete="off" required />
+        <button type="submit">Confirm</button>
+      </form>
+      <div class="actions">
+        <button id="send" type="button" class="primary" disabled>Send</button>
+      </div>
+      <p id="message" role="status" aria-live="polite"></p>
+    </div>
+    <script src="fb-bus.js"></script>
+    <script src="fb-send.js"></script>
+  </body>
+</html>
