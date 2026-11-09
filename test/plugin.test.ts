@@ -15,10 +15,11 @@ interface FakeApp {
   errors: string[]
   deltas: unknown[]
   hasProvider: boolean
+  putHandlers: Map<string, unknown>
 }
 
 function fakeApp(dir: string): FakeApp {
-  const f: Partial<FakeApp> = { store: new Map(), statuses: [], errors: [], deltas: [], hasProvider: true }
+  const f: Partial<FakeApp> = { store: new Map(), statuses: [], errors: [], deltas: [], hasProvider: true, putHandlers: new Map() }
   const app = {
     getDataDirPath: () => dir,
     setPluginStatus: (m: string) => f.statuses!.push(m),
@@ -26,6 +27,7 @@ function fakeApp(dir: string): FakeApp {
     error: (m: string) => f.errors!.push(m),
     debug: () => {},
     handleMessage: (_id: string, delta: unknown) => f.deltas!.push(delta),
+    registerPutHandler: (_ctx: string, path: string, handler: unknown) => f.putHandlers!.set(path, handler),
     resourcesApi: {
       getResource: async (type: string, id: string) => {
         if (!f.hasProvider) throw new Error(`No provider for ${type}`)

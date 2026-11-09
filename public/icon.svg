@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OpenCPN Sync">
+  <rect width="64" height="64" rx="12" fill="#0b6bcb"/>
+  <path d="M14 40 L26 22 L38 34 L50 18" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="0.1 8"/>
+  <circle cx="14" cy="40" r="4" fill="#fff"/>
+  <circle cx="50" cy="18" r="4" fill="#fff"/>
+  <path d="M20 50 H44 M38 45 L44 50 L38 55" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

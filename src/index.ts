@@ -4,8 +4,12 @@ import type { Path, Plugin, ServerAPI } from '@signalk/server-api'
 import { loadOrCreateCertificate } from './certificate.js'
 import { GpxError, parseGpx, resourceId, toSignalKRoute, toSignalKWaypoint, type Origin } from './gpx.js'
 import { KeyStore } from './keystore.js'
-import { announce, type MdnsAnnouncer } from './mdns.js'
+import { MdnsService } from './mdns.js'
 import { PeerServer, Result, type ReceiveRequest, type ResultCode } from './peer-server.js'
+import { PeerClient } from './peer-client.js'
+import { Outbound } from './outbound.js'
+import type { SkResource } from './gpx-writer.js'
+import { registerApi, registerPutHandlers, type ApiDeps, type RouterLike } from './api.js'
 
 const PLUGIN_ID = 'signalk-opencpn-sync'
 const PAIRING_PATH = 'notifications.opencpnSync.pairing' as Path
@@ -41,6 +45,13 @@ const ConfigSchema = Type.Object({
     description: 'Lets OpenCPN find this server with "Scan". Without it, type the IP address into the dialog.',
     default: true
   }),
+  peers: Type.Optional(
+    Type.Array(Type.String({ title: 'Address' }), {
+      title: 'OpenCPN computers to send to',
+      description:
+        'Host or host:port of OpenCPN instances, offered for sending in addition to those found on the network. Port 8443 if left out.'
+    })
+  ),
   requirePairing: Type.Boolean({
     title: 'Require PIN pairing',
     description: 'Off accepts routes from anyone on the network without a PIN.',
@@ -51,7 +62,17 @@ type Config = Static<typeof ConfigSchema>
 
 export default function (app: ServerAPI): Plugin {
   let server: PeerServer | undefined
-  let mdns: MdnsAnnouncer | undefined
+  let mdns: MdnsService | undefined
+  let outbound: Outbound | undefined
+  let peerName: string | undefined
+
+  const apiDeps: ApiDeps = {
+    outbound: () => outbound,
+    scan: async () => {
+      await mdns?.scan()
+    },
+    peerName: () => peerName
+  }
   let pairingTimer: NodeJS.Timeout | undefined
   /** Bumped by stop() so a start() still running in the background stands down. */
   let generation = 0
@@ -148,10 +169,15 @@ export default function (app: ServerAPI): Plugin {
     description: 'Receive routes and waypoints from OpenCPN "Send to Peer" as Signal K resources',
     schema: () => ConfigSchema,
 
+    registerWithRouter: (router) => {
+      registerApi(router as unknown as RouterLike, apiDeps)
+    },
+
     start: (settings: object) => {
       const config = { ...defaults(), ...(settings as Partial<Config>) }
       const bindAddress = config.bindAddress?.trim() || undefined
       const run = ++generation
+      registerPutHandlers(app.registerPutHandler.bind(app), apiDeps, PLUGIN_ID)
       void (async () => {
         try {
           const dir = app.getDataDirPath()
@@ -178,13 +204,28 @@ export default function (app: ServerAPI): Plugin {
             receive,
             log: (msg) => app.debug(msg)
           })
+          const peerKeys = new KeyStore(join(dir, 'peer-keys.json'))
+          await peerKeys.load()
           const started = server
           const port = await started.start()
           if (run !== generation) {
             await started.stop()
             return
           }
-          if (config.announceMdns) mdns = announce(config.peerName, (msg) => app.debug(msg))
+          mdns = new MdnsService({
+            announceAs: config.announceMdns ? config.peerName : undefined,
+            announcePort: port,
+            log: (msg) => app.debug(msg)
+          })
+          const configuredPeers = config.peers ?? []
+          outbound = new Outbound({
+            client: new PeerClient({ source: config.peerName, keys: peerKeys }),
+            getResource: async (type, id) => (await app.resourcesApi.getResource(type, id)) as SkResource,
+            discovered: () => mdns?.list() ?? [],
+            configuredPeers: () => configuredPeers
+          })
+          peerName = config.peerName
+          void mdns.scan().catch(() => undefined)
           setStatus(`Listening on ${bindAddress ? `${bindAddress}:` : 'port '}${port} as "${config.peerName}"`)
         } catch (error) {
           app.setPluginError(`Could not start: ${String(error)}`)
@@ -198,6 +239,8 @@ export default function (app: ServerAPI): Plugin {
       pairingTimer = undefined
       mdns?.stop()
       mdns = undefined
+      outbound = undefined
+      peerName = undefined
       await server?.stop()
       server = undefined
     }
