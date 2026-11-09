@@ -16,10 +16,13 @@ interface FakeApp {
   deltas: unknown[]
   hasProvider: boolean
   putHandlers: Map<string, unknown>
+  providers: Array<{ type: string; methods: Record<string, (...a: unknown[]) => Promise<unknown>> }>
+  onConnection?: (ws: unknown) => void
+  sockets: string[]
 }
 
 function fakeApp(dir: string): FakeApp {
-  const f: Partial<FakeApp> = { store: new Map(), statuses: [], errors: [], deltas: [], hasProvider: true, putHandlers: new Map() }
+  const f: Partial<FakeApp> = { store: new Map(), statuses: [], errors: [], deltas: [], hasProvider: true, putHandlers: new Map(), providers: [], sockets: [] }
   const app = {
     getDataDirPath: () => dir,
     setPluginStatus: (m: string) => f.statuses!.push(m),
@@ -28,6 +31,15 @@ function fakeApp(dir: string): FakeApp {
     debug: () => {},
     handleMessage: (_id: string, delta: unknown) => f.deltas!.push(delta),
     registerPutHandler: (_ctx: string, path: string, handler: unknown) => f.putHandlers!.set(path, handler),
+    registerResourceProvider: (p: FakeApp['providers'][number]) => f.providers!.push(p),
+    registerWebSocket: (path: string) => {
+      f.sockets!.push(path)
+      return {
+        on: (_event: string, cb: (ws: unknown) => void) => {
+          f.onConnection = cb
+        }
+      }
+    },
     resourcesApi: {
       getResource: async (type: string, id: string) => {
         if (!f.hasProvider) throw new Error(`No provider for ${type}`)
@@ -164,6 +176,31 @@ describe('plugin', () => {
     )
     const r = await call(port, '/api/get-version')
     expect(r.json).toEqual({ version: '5.14.0' })
+  }, 60_000)
+
+  it('offers the Freeboard extension and shows received routes there', async () => {
+    await startPlugin({ requirePairing: false })
+    expect(fake.sockets).toEqual(['/fb-bridge'])
+    const provider = fake.providers.find((p) => p.type === 'plotterExtensions')!
+    expect(Object.keys((await provider.methods.listResources()) as object)).toEqual(['signalk-opencpn-sync'])
+    await expect(provider.methods.setResource('x', {})).rejects.toThrow(/read-only/)
+
+    const sent: Array<{ type: string; items: Array<{ id: string }> }> = []
+    fake.onConnection!({ readyState: 1, send: (d: string) => sent.push(JSON.parse(d)), close: () => {}, on: () => {} })
+    const r = await call(port, `/api/rx_object?${q({ source: 'nav-pc', apikey: '1' })}`, ROUTE_GPX)
+    expect(r.json).toEqual({ result: 0 })
+    expect(sent).toEqual([
+      { type: 'show', items: [expect.objectContaining({ type: 'routes', id: '3f2a1c4e-9b7d-4e21-a8c3-5d6e7f8a9b0c' })] }
+    ])
+
+    await plugin.stop()
+    expect(await provider.methods.listResources()).toEqual({})
+  }, 60_000)
+
+  it('leaves Freeboard alone when the extension is off', async () => {
+    await startPlugin({ freeboardExtension: false })
+    expect(fake.sockets).toEqual([])
+    expect(fake.providers.filter((p) => p.type === 'plotterExtensions')).toEqual([])
   }, 60_000)
 
   it('stops the server on stop()', async () => {

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Type, type Static } from 'typebox'
 import type { Path, Plugin, ServerAPI } from '@signalk/server-api'
@@ -10,6 +11,16 @@ import { PeerClient } from './peer-client.js'
 import { Outbound } from './outbound.js'
 import type { SkResource } from './gpx-writer.js'
 import { registerApi, registerPutHandlers, type ApiDeps, type RouterLike } from './api.js'
+import { BRIDGE_PATH, buildManifest, EXTENSION_ID, FreeboardBridge, type SocketLike } from './freeboard.js'
+
+function packageVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version?: string }
+    return pkg.version ?? '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
 
 const PLUGIN_ID = 'signalk-opencpn-sync'
 const PAIRING_PATH = 'notifications.opencpnSync.pairing' as Path
@@ -56,6 +67,12 @@ const ConfigSchema = Type.Object({
     title: 'Require PIN pairing',
     description: 'Off accepts routes from anyone on the network without a PIN.',
     default: true
+  }),
+  freeboardExtension: Type.Boolean({
+    title: 'Freeboard-SK extension',
+    description:
+      'Shows routes received from OpenCPN on the Freeboard-SK chart and adds "Send to OpenCPN" to the menu of routes and waypoints (Freeboard-SK 3.4 or later). After turning it on, restart the server once so Freeboard-SK finds it.',
+    default: true
   })
 })
 type Config = Static<typeof ConfigSchema>
@@ -65,6 +82,8 @@ export default function (app: ServerAPI): Plugin {
   let mdns: MdnsService | undefined
   let outbound: Outbound | undefined
   let peerName: string | undefined
+  let bridge: FreeboardBridge | undefined
+  let providerRegistered = false
 
   const apiDeps: ApiDeps = {
     outbound: () => outbound,
@@ -114,10 +133,17 @@ export default function (app: ServerAPI): Plugin {
     return false
   }
 
-  async function store(type: 'routes' | 'waypoints', guid: string | undefined, data: Record<string, unknown>, force: boolean): Promise<ResultCode> {
-    if (guid && !force && (await exists(guid))) return Result.DuplicateRejected
-    await app.resourcesApi.setResource(type, resourceId(guid), data)
-    return Result.NoError
+  /** Store one object; returns the resource id it was stored under, or the reason it was not. */
+  async function store(
+    type: 'routes' | 'waypoints',
+    guid: string | undefined,
+    data: Record<string, unknown>,
+    force: boolean
+  ): Promise<{ result: ResultCode; id?: string }> {
+    if (guid && !force && (await exists(guid))) return { result: Result.DuplicateRejected }
+    const id = resourceId(guid)
+    await app.resourcesApi.setResource(type, id, data)
+    return { result: Result.NoError, id }
   }
 
   async function receive(req: ReceiveRequest): Promise<ResultCode> {
@@ -142,13 +168,15 @@ export default function (app: ServerAPI): Plugin {
           continue
         }
         const r = await store('routes', rte.guid, data, req.force)
-        if (r === Result.NoError) stored++
-        else result = r
+        if (r.result === Result.NoError && r.id) {
+          stored++
+          bridge?.announce(r.id)
+        } else result = r.result
       }
       for (const wpt of content.waypoints) {
         const r = await store('waypoints', wpt.guid, toSignalKWaypoint(wpt, origin), req.force)
-        if (r === Result.NoError) stored++
-        else result = r
+        if (r.result === Result.NoError) stored++
+        else result = r.result
       }
     } catch (error) {
       app.error(`Could not store objects from ${req.source}: ${String(error)}`)
@@ -161,6 +189,39 @@ export default function (app: ServerAPI): Plugin {
     if (stored === 0 && result === Result.NoError) return Result.ObjectRejected
     setStatus(`Received ${content.routes.length} route(s), ${content.waypoints.length} waypoint(s) from ${req.source}`)
     return result
+  }
+
+  /**
+   * Offer the Freeboard-SK extension. The resource provider can only be
+   * registered once per server run; while the extension is off it lists nothing.
+   */
+  function startFreeboard(): void {
+    if (typeof app.registerWebSocket !== 'function') {
+      app.debug('Freeboard extension needs Signal K server 2.35 or later (registerWebSocket)')
+      return
+    }
+    const b = new FreeboardBridge((msg) => app.debug(msg))
+    app.registerWebSocket(BRIDGE_PATH).on('connection', (ws) => b.accept(ws as unknown as SocketLike))
+    bridge = b
+    if (providerRegistered) return
+    providerRegistered = true
+    const manifest = () => buildManifest(packageVersion())
+    app.registerResourceProvider({
+      type: 'plotterExtensions' as never,
+      methods: {
+        listResources: async () => (bridge ? { [EXTENSION_ID]: manifest() } : {}),
+        getResource: async (id: string) => {
+          if (!bridge || id !== EXTENSION_ID) throw new Error(`No such plotterExtensions resource: ${id}`)
+          return manifest()
+        },
+        setResource: async () => {
+          throw new Error(`${EXTENSION_ID} is a read-only provider`)
+        },
+        deleteResource: async () => {
+          throw new Error(`${EXTENSION_ID} is a read-only provider`)
+        }
+      }
+    })
   }
 
   const plugin: Plugin = {
@@ -225,6 +286,7 @@ export default function (app: ServerAPI): Plugin {
             configuredPeers: () => configuredPeers
           })
           peerName = config.peerName
+          if (config.freeboardExtension) startFreeboard()
           void mdns.scan().catch(() => undefined)
           setStatus(`Listening on ${bindAddress ? `${bindAddress}:` : 'port '}${port} as "${config.peerName}"`)
         } catch (error) {
@@ -241,6 +303,8 @@ export default function (app: ServerAPI): Plugin {
       mdns = undefined
       outbound = undefined
       peerName = undefined
+      bridge?.close()
+      bridge = undefined
       await server?.stop()
       server = undefined
     }
@@ -249,5 +313,5 @@ export default function (app: ServerAPI): Plugin {
 }
 
 function defaults(): Config {
-  return { port: 8443, peerName: 'SignalK', announceMdns: true, requirePairing: true }
+  return { port: 8443, peerName: 'SignalK', announceMdns: true, requirePairing: true, freeboardExtension: true }
 }

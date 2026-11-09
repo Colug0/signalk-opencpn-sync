@@ -41,6 +41,7 @@ does, and speaks its REST interface.
 | Peer name | `SignalK` | Name shown in OpenCPN's peer list. Must not start with `Portable`. |
 | Announce via mDNS | on | Lets OpenCPN find the server with **Scan**. |
 | Require PIN pairing | on | Off accepts routes from anyone on the network without a PIN. |
+| Freeboard-SK extension | on | Show received routes in Freeboard-SK and add "Send to OpenCPN" to its menu (see below). |
 | OpenCPN computers to send to | empty | Extra addresses (`host` or `host:port`) offered for sending, besides those found on the network. |
 
 ## Sending a route from OpenCPN
@@ -123,6 +124,31 @@ PUT /signalk/v1/api/vessels/self/opencpnSync/pair
 The request completes with `statusCode` 200 (sent or paired), 403 (PIN
 needed or wrong), 409 (exists), 400, 502 or 504, and the outcome object as
 JSON in `message`.
+
+## Freeboard-SK
+
+With Freeboard-SK 3.4 or later, the plugin registers itself as a Freeboard-SK
+*plotter extension* (setting **Freeboard-SK extension**, on by default):
+
+- **Received routes appear on the chart.** When a route arrives from OpenCPN,
+  every open Freeboard-SK shows it at once, as if you had ticked it in the
+  route list. A Freeboard-SK opened later shows routes received in the last
+  24 hours. Each browser shows a route only once, so hiding it again sticks.
+  Waypoints are not shown automatically: Freeboard-SK has no way yet to show
+  a single waypoint without hiding the others.
+- **"Send to OpenCPN" in the menu** of a route or waypoint on the chart. It
+  opens a small window to pick the OpenCPN computer, pair with its PIN if
+  needed, and send.
+
+After turning the extension on (or installing the plugin), restart the Signal K
+server once: Freeboard-SK only learns about extensions that were there when the
+server started.
+
+How it works: Freeboard-SK loads a hidden page of the plugin in every open
+tab. That page opens a WebSocket to the plugin
+(`/plugins/signalk-opencpn-sync/fb-bridge`), and the plugin tells it which
+routes to show; the page shows them through Freeboard-SK's `route.show`. The
+WebSocket only carries route ids from the plugin to the page.
 
 ## What is converted
 
