@@ -28,6 +28,12 @@ describe('peersFromResponse', () => {
     expect(peersFromResponse(answer('SignalK-Test', 18443), ipv4('192.0.2.28'), never, now)[0].port).toBe(18443)
   })
 
+  it('ignores impossible announced ports', () => {
+    for (const bad of [0, 70000, 80.5, Number.NaN]) {
+      expect(peersFromResponse(answer('x', bad), ipv4('192.0.2.9'), never, now)[0].port).toBe(8443)
+    }
+  })
+
   it('falls back to 8443 without an SRV record', () => {
     expect(peersFromResponse(answer('nav-pc'), ipv4('192.0.2.28'), never, now)[0].port).toBe(8443)
   })

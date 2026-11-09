@@ -74,7 +74,11 @@ export function peersFromResponse(
     if (!name || skip(name, rinfo.address)) continue
     const announced = srvPort.get(r.data.toLowerCase())
     const port =
-      announced !== undefined && announced > 0 && !OPENCPN_PLACEHOLDER_PORTS.has(announced)
+      announced !== undefined &&
+      Number.isInteger(announced) &&
+      announced >= 1 &&
+      announced <= 65535 &&
+      !OPENCPN_PLACEHOLDER_PORTS.has(announced)
         ? announced
         : name.startsWith('Portable')
           ? 8444
