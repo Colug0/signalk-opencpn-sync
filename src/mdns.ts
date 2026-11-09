@@ -7,8 +7,11 @@ import makeMdns from 'multicast-dns'
  */
 export const OPENCPN_SERVICE = 'opencpn-object-control-service'
 
-/** Port OpenCPN announces. Its clients ignore it and always connect to 8443. */
-const ANNOUNCED_PORT = 8000
+/**
+ * Ports OpenCPN itself announces (normal, portable). Its clients ignore the
+ * announced port and always connect to 8443 or 8444, so these say nothing.
+ */
+const OPENCPN_PLACEHOLDER_PORTS = new Set([8000, 8001])
 const TTL = 120
 const MDNS_PORT = 5353
 
@@ -32,7 +35,53 @@ export interface DiscoveredPeer {
 export interface MdnsOptions {
   /** Answer OpenCPN's discovery under this name; undefined only listens. */
   announceAs?: string
+  /**
+   * Port to put in our SRV record. OpenCPN ignores it, but another instance
+   * of this plugin uses it to tell us apart from an OpenCPN on the same host.
+   */
+  announcePort?: number
   log: (msg: string) => void
+}
+
+interface MdnsRecord {
+  name: string
+  type: string
+  data?: unknown
+}
+
+/**
+ * OpenCPN peers in one mDNS response. The name comes from the PTR record and
+ * the address from the UDP sender, as OpenCPN does it; the port from a
+ * matching SRV record when it is a real one, else OpenCPN's fixed port.
+ */
+export function peersFromResponse(
+  response: { answers: MdnsRecord[]; additionals?: MdnsRecord[] },
+  rinfo: { address: string; family: string },
+  skip: (name: string, address: string) => boolean,
+  now = new Date()
+): DiscoveredPeer[] {
+  if (rinfo.family !== 'IPv4') return []
+  const records = [...response.answers, ...(response.additionals ?? [])]
+  const srvPort = new Map<string, number>()
+  for (const r of records) {
+    const port = (r.data as { port?: unknown } | undefined)?.port
+    if (r.type === 'SRV' && typeof port === 'number') srvPort.set(r.name.toLowerCase(), port)
+  }
+  const out: DiscoveredPeer[] = []
+  for (const r of records) {
+    if (r.type !== 'PTR' || r.name.toLowerCase() !== OPENCPN_SERVICE || typeof r.data !== 'string') continue
+    const name = r.data.split(`.${OPENCPN_SERVICE}`)[0]
+    if (!name || skip(name, rinfo.address)) continue
+    const announced = srvPort.get(r.data.toLowerCase())
+    const port =
+      announced !== undefined && announced > 0 && !OPENCPN_PLACEHOLDER_PORTS.has(announced)
+        ? announced
+        : name.startsWith('Portable')
+          ? 8444
+          : 8443
+    out.push({ name, address: rinfo.address, port, lastSeen: now })
+  }
+  return out
 }
 
 /** OpenCPN peer discovery on mDNS, in both directions. */
@@ -44,18 +93,11 @@ export class MdnsService {
     this.mdns.on('error', (error: Error) => opts.log(`mDNS: ${error.message}`))
     this.mdns.on('query', (query, rinfo) => this.answer(query, rinfo))
     this.mdns.on('response', (response, rinfo) => {
-      for (const a of [...response.answers, ...(response.additionals ?? [])]) {
-        if (a.type !== 'PTR' || a.name.toLowerCase() !== OPENCPN_SERVICE || typeof a.data !== 'string') continue
-        const name = a.data.split(`.${OPENCPN_SERVICE}`)[0]
-        if (!name || name === opts.announceAs) continue
-        if (rinfo.family !== 'IPv4') continue
-        this.peers.set(rinfo.address, {
-          name,
-          address: rinfo.address,
-          port: name.startsWith('Portable') ? 8444 : 8443,
-          lastSeen: new Date()
-        })
-      }
+      const own = (name: string, address: string): boolean =>
+        name === opts.announceAs && localIpv4().includes(address)
+      // Several instances can answer from one host (OpenCPN and a Signal K
+      // server on the same PC), so a peer is its name and its address.
+      for (const p of peersFromResponse(response as never, rinfo, own)) this.peers.set(`${p.name}@${p.address}`, p)
     })
   }
 
@@ -80,8 +122,8 @@ export class MdnsService {
 
   /**
    * OpenCPN takes the peer's name from the PTR answer and its address from the
-   * UDP sender, so a PTR record is all it needs; SRV and A records are added
-   * for other tools.
+   * UDP sender, so a PTR record is all it needs. The SRV record carries our
+   * real port for other instances of this plugin; A records are for other tools.
    */
   private answer(query: { id?: number; questions: Array<{ name: string; type: string }> }, rinfo: { port: number; address: string }): void {
     const name = this.opts.announceAs
@@ -100,7 +142,7 @@ export class MdnsService {
       questions: legacy ? asked : [],
       answers: [{ name: OPENCPN_SERVICE, type: 'PTR' as const, ttl: TTL, data: instance }],
       additionals: [
-        { name: instance, type: 'SRV' as const, ttl: TTL, data: { port: ANNOUNCED_PORT, target, priority: 0, weight: 0 } },
+        { name: instance, type: 'SRV' as const, ttl: TTL, data: { port: this.opts.announcePort ?? 8443, target, priority: 0, weight: 0 } },
         ...localIpv4().map((ip) => ({ name: target, type: 'A' as const, ttl: TTL, data: ip }))
       ]
     }

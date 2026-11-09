@@ -214,6 +214,7 @@ export default function (app: ServerAPI): Plugin {
           }
           mdns = new MdnsService({
             announceAs: config.announceMdns ? config.peerName : undefined,
+            announcePort: port,
             log: (msg) => app.debug(msg)
           })
           const configuredPeers = config.peers ?? []
