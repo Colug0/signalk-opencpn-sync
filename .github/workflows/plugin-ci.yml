@@ -1,0 +1,19 @@
+name: SignalK Plugin CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # A superseded PR run is cancelled; a main run never is, since that is the
+  # one the Signal K plugin registry reads.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  plugin-ci:
+    uses: SignalK/signalk-server/.github/workflows/plugin-ci.yml@92a2405cebfb94f84a78ef35183b75f3cb098150 # v2.37.0
