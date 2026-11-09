@@ -1,0 +1,55 @@
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # Publishing lives in this workflow on purpose: a release that
+  # release-please creates with the workflow token does not trigger other
+  # workflows, so a separate "on: release" workflow would never run.
+  # npm trusted publishing (OIDC) must name this file: release-please.yml.
+  # npm accepts a trusted publisher only for a package that exists, so the
+  # very first version is published by hand; set the repository variable
+  # NPM_TRUSTED_PUBLISHING to "true" once the trusted publisher is set up.
+  publish:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true' && vars.NPM_TRUSTED_PUBLISHING == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run build
+      - name: Check version matches the tag
+        run: |
+          v="v$(node -p "require('./package.json').version")"
+          [ "$v" = "${{ needs.release-please.outputs.tag_name }}" ] || { echo "package.json $v != tag"; exit 1; }
+      - run: npm publish --provenance --access public

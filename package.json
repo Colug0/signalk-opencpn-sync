@@ -1,13 +1,14 @@
 {
   "name": "signalk-opencpn-sync",
   "version": "0.0.0",
-  "description": "Exchange routes and waypoints with OpenCPN via its \"Send to Peer\" protocol, in both directions",
+  "description": "Exchange routes and waypoints between OpenCPN and Signal K over OpenCPN's \"Send to Peer\", in both directions, with Freeboard-SK integration",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist",
-    "public"
+    "public",
+    "docs/screenshots"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -47,6 +48,18 @@
   },
   "signalk": {
     "displayName": "OpenCPN Sync",
-    "appIcon": "./icon.svg"
+    "appIcon": "./icon.svg",
+    "screenshots": [
+      "./docs/screenshots/webapp.png",
+      "./docs/screenshots/freeboard.png",
+      "./docs/screenshots/config.png"
+    ],
+    "recommends": [
+      "@signalk/freeboard-sk"
+    ]
+  },
+  "homepage": "https://github.com/Colug0/signalk-opencpn-sync#readme",
+  "bugs": {
+    "url": "https://github.com/Colug0/signalk-opencpn-sync/issues"
   }
 }

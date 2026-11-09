@@ -15,6 +15,8 @@ To OpenCPN, the plugin looks like another OpenCPN instance on the network: it
 answers and sends OpenCPN's peer discovery, pairs with a PIN like OpenCPN
 does, and speaks its REST interface.
 
+![The plugin's webapp: choose an OpenCPN computer and send routes and waypoints](docs/screenshots/webapp.png)
+
 ## Requirements
 
 - Signal K server 2.x with a resources provider for `routes` and `waypoints`
@@ -140,6 +142,8 @@ With Freeboard-SK 3.4 or later, the plugin registers itself as a Freeboard-SK
   opens a small window to pick the OpenCPN computer, pair with its PIN if
   needed, and send.
 
+![Freeboard-SK: "Send to OpenCPN" on a route opens this window](docs/screenshots/freeboard.png)
+
 After turning the extension on (or installing the plugin), restart the Signal K
 server once: Freeboard-SK only learns about extensions that were there when the
 server started.
@@ -214,6 +218,16 @@ server's configuration directory (`node_modules/signalk-opencpn-sync`), enable
 it, and send from OpenCPN. If OpenCPN runs on the same computer, it already
 uses port 8443; set **Bind address** to `127.0.0.2` and type `127.0.0.2` as the
 peer in OpenCPN.
+
+### Releasing
+
+Releases are made by [release-please](https://github.com/googleapis/release-please):
+merging changes with Conventional Commit titles into `main` keeps a release
+PR open; merging that PR tags the version, writes `CHANGELOG.md` and creates
+the GitHub release. The same workflow then publishes to npm through trusted
+publishing (OIDC, with provenance) once the repository variable
+`NPM_TRUSTED_PUBLISHING` is `true`. The first version is published by hand,
+because npm only accepts a trusted publisher for a package that already exists.
 
 ## License
 
