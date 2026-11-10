@@ -19,7 +19,8 @@
   "keywords": [
     "signalk-node-server-plugin",
     "signalk-webapp",
-    "signalk-category-utility",
+    "signalk-category-plotter-extensions",
+    "signalk-category-chart-plotters",
     "opencpn",
     "routes",
     "waypoints"
