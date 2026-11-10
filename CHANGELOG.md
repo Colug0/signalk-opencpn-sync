@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Colug0/signalk-opencpn-sync/compare/v0.1.0...v0.1.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* list in the plotter extensions app store category ([#6](https://github.com/Colug0/signalk-opencpn-sync/issues/6)) ([27062bc](https://github.com/Colug0/signalk-opencpn-sync/commit/27062bceb238d5f77048b2e2c02ba16b6a41b89a))
+
 ## 0.1.0 (2026-11-09)
 
 
