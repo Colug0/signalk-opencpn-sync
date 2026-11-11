@@ -1,6 +1,6 @@
 {
   "name": "signalk-opencpn-sync",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Exchange routes and waypoints between OpenCPN and Signal K over OpenCPN's \"Send to Peer\", in both directions, with Freeboard-SK integration",
   "type": "module",
   "main": "dist/index.js",
