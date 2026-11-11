@@ -160,6 +160,7 @@ export default function (app: ServerAPI): Plugin {
     const origin: Origin = { sender: req.source, receivedAt: new Date().toISOString() }
     let stored = 0
     let result: ResultCode = Result.NoError
+    const received: Array<{ type: 'routes' | 'waypoints'; id: string }> = []
     try {
       for (const rte of content.routes) {
         const data = toSignalKRoute(rte, origin)
@@ -170,17 +171,21 @@ export default function (app: ServerAPI): Plugin {
         const r = await store('routes', rte.guid, data, req.force)
         if (r.result === Result.NoError && r.id) {
           stored++
-          bridge?.announce(r.id)
+          received.push({ type: 'routes', id: r.id })
         } else result = r.result
       }
       for (const wpt of content.waypoints) {
         const r = await store('waypoints', wpt.guid, toSignalKWaypoint(wpt, origin), req.force)
-        if (r.result === Result.NoError) stored++
-        else result = r.result
+        if (r.result === Result.NoError && r.id) {
+          stored++
+          received.push({ type: 'waypoints', id: r.id })
+        } else result = r.result
       }
     } catch (error) {
       app.error(`Could not store objects from ${req.source}: ${String(error)}`)
       return Result.RouteInsertError
+    } finally {
+      bridge?.announce(received)
     }
     if (content.trackCount > 0) {
       app.debug(`Ignored ${content.trackCount} track(s) from ${req.source}: no Signal K track resource`)
