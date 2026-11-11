@@ -178,7 +178,7 @@ describe('plugin', () => {
     expect(r.json).toEqual({ version: '5.14.0' })
   }, 60_000)
 
-  it('offers the Freeboard extension and shows received routes there', async () => {
+  it('offers the Freeboard extension and shows received routes and waypoints there', async () => {
     await startPlugin({ requirePairing: false })
     expect(fake.sockets).toEqual(['/fb-bridge'])
     const provider = fake.providers.find((p) => p.type === 'plotterExtensions')!
@@ -192,6 +192,13 @@ describe('plugin', () => {
     expect(sent).toEqual([
       { type: 'show', items: [expect.objectContaining({ type: 'routes', id: '3f2a1c4e-9b7d-4e21-a8c3-5d6e7f8a9b0c' })] }
     ])
+
+    const w = await call(port, `/api/rx_object?${q({ source: 'nav-pc', apikey: '1' })}`, WAYPOINT_AND_TRACK_GPX)
+    expect(w.json).toEqual({ result: 0 })
+    expect(sent[1]).toEqual({
+      type: 'show',
+      items: [expect.objectContaining({ type: 'waypoints', id: resourceId('legacy-guid-0001') })]
+    })
 
     await plugin.stop()
     expect(await provider.methods.listResources()).toEqual({})

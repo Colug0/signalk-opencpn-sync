@@ -43,7 +43,7 @@ does, and speaks its REST interface.
 | Peer name | `SignalK` | Name shown in OpenCPN's peer list. Must not start with `Portable`. |
 | Announce via mDNS | on | Lets OpenCPN find the server with **Scan**. |
 | Require PIN pairing | on | Off accepts routes from anyone on the network without a PIN. |
-| Freeboard-SK extension | on | Show received routes in Freeboard-SK and add "Send to OpenCPN" to its menu (see below). |
+| Freeboard-SK extension | on | Show received routes and waypoints in Freeboard-SK and add "Send to OpenCPN" to its menu (see below). |
 | OpenCPN computers to send to | empty | Extra addresses (`host` or `host:port`) offered for sending, besides those found on the network. |
 
 ## Sending a route from OpenCPN
@@ -132,12 +132,13 @@ JSON in `message`.
 With Freeboard-SK 3.4 or later, the plugin registers itself as a Freeboard-SK
 *plotter extension* (setting **Freeboard-SK extension**, on by default):
 
-- **Received routes appear on the chart.** When a route arrives from OpenCPN,
-  every open Freeboard-SK shows it at once, as if you had ticked it in the
-  route list. A Freeboard-SK opened later shows routes received in the last
-  24 hours. Each browser shows a route only once, so hiding it again sticks.
-  Waypoints are not shown automatically: Freeboard-SK has no way yet to show
-  a single waypoint without hiding the others.
+- **Received routes and waypoints appear on the chart.** When they arrive
+  from OpenCPN, every open Freeboard-SK shows them at once, as if you had
+  ticked them in the route or waypoint list; everything else stays as it was.
+  A Freeboard-SK opened later shows what was received in the last 24 hours.
+  Each browser shows an object only once, so hiding it again sticks.
+  Waypoints need Freeboard-SK 3.5 or later; before that only routes are shown
+  automatically.
 - **"Send to OpenCPN" in the menu** of a route or waypoint on the chart. It
   opens a small window to pick the OpenCPN computer, pair with its PIN if
   needed, and send.
@@ -151,8 +152,9 @@ server started.
 How it works: Freeboard-SK loads a hidden page of the plugin in every open
 tab. That page opens a WebSocket to the plugin
 (`/plugins/signalk-opencpn-sync/fb-bridge`), and the plugin tells it which
-routes to show; the page shows them through Freeboard-SK's `route.show`. The
-WebSocket only carries route ids from the plugin to the page.
+routes and waypoints to show; the page shows them through Freeboard-SK's
+`resources.show` (3.5 and later) or `route.show`. The WebSocket only carries
+route and waypoint ids from the plugin to the page.
 
 ## What is converted
 

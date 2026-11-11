@@ -28,6 +28,7 @@ describe('buildManifest', () => {
     expect(m.apiVersion).toBe('1')
     expect(m.version).toBe('1.2.3')
     expect(m.requires).toEqual(['background.iframe', 'panels.iframe'])
+    expect(m.optional).toEqual(['resources.display', 'routes', 'actions', 'windows'])
     expect(m.background[0]).toMatchObject({ id: 'runtime', type: 'iframe', url: '/signalk-opencpn-sync/fb-runtime.html' })
     expect(m.panels[0]).toMatchObject({ id: 'send', type: 'iframe', url: '/signalk-opencpn-sync/fb-send.html' })
     expect(m.actions[0]).toMatchObject({ targets: ['route', 'waypoint'], action: { type: 'openWindow', panel: 'send' } })
@@ -45,7 +46,7 @@ describe('FreeboardBridge', () => {
     b.accept(a)
     b.accept(c)
     expect(b.connected).toBe(2)
-    b.announce('route-1')
+    b.announce([{ type: 'routes', id: 'route-1' }])
     const msg = { type: 'show', items: [{ type: 'routes', id: 'route-1', at: '2026-11-09T10:00:00.000Z' }] }
     expect(a.sent).toEqual([msg])
     expect(c.sent).toEqual([msg])
@@ -53,10 +54,10 @@ describe('FreeboardBridge', () => {
 
   it('offers recent routes to a page that connects later, once per route', () => {
     const b = new FreeboardBridge(() => {}, now)
-    b.announce('route-1')
+    b.announce([{ type: 'routes', id: 'route-1' }])
     clock = new Date('2026-11-09T10:05:00Z')
-    b.announce('route-1') // resent: newer time, still one entry
-    b.announce('route-2')
+    b.announce([{ type: 'routes', id: 'route-1' }]) // resent: newer time, still one entry
+    b.announce([{ type: 'routes', id: 'route-2' }])
     const late = new FakeSocket()
     b.accept(late)
     expect(late.sent).toEqual([
@@ -70,10 +71,37 @@ describe('FreeboardBridge', () => {
     ])
   })
 
+  it('sends the routes and waypoints of one transfer in one message', () => {
+    const b = new FreeboardBridge(() => {}, now)
+    const s = new FakeSocket()
+    b.accept(s)
+    b.announce([])
+    b.announce([
+      { type: 'routes', id: 'x' },
+      { type: 'waypoints', id: 'x' },
+      { type: 'waypoints', id: 'w2' }
+    ])
+    const at = clock.toISOString()
+    expect(s.sent).toEqual([
+      {
+        type: 'show',
+        items: [
+          { type: 'routes', id: 'x', at },
+          { type: 'waypoints', id: 'x', at },
+          { type: 'waypoints', id: 'w2', at }
+        ]
+      }
+    ])
+    // a route and a waypoint with the same id are separate entries for late pages
+    const late = new FakeSocket()
+    b.accept(late)
+    expect((late.sent[0] as { items: unknown[] }).items).toHaveLength(3)
+  })
+
   it('forgets routes after a day', () => {
     clock = new Date('2026-11-09T10:00:00Z')
     const b = new FreeboardBridge(() => {}, now)
-    b.announce('old')
+    b.announce([{ type: 'routes', id: 'old' }])
     clock = new Date('2026-11-10T10:00:01Z')
     const s = new FakeSocket()
     b.accept(s)
@@ -89,7 +117,7 @@ describe('FreeboardBridge', () => {
     const opening = new FakeSocket()
     opening.readyState = 0
     b.accept(opening)
-    b.announce('r')
+    b.announce([{ type: 'routes', id: 'r' }])
     expect(opening.sent).toEqual([])
   })
 
@@ -101,7 +129,11 @@ describe('FreeboardBridge', () => {
     s.emit('message', 'not json')
     s.emit('message', JSON.stringify({ type: 'shown', id: 'r', ok: true }))
     s.emit('message', JSON.stringify({ type: 'shown', id: 'r', ok: false, error: 'routes.badRef' }))
-    expect(logs).toEqual(['Freeboard could not show route r: routes.badRef'])
+    s.emit('message', JSON.stringify({ type: 'shown', resource: 'waypoints', id: 'w', ok: false, error: 'resources.notSupported' }))
+    expect(logs).toEqual([
+      'Freeboard could not show route r: routes.badRef',
+      'Freeboard could not show waypoint w: resources.notSupported'
+    ])
   })
 
   it('closes every socket on close()', () => {
