@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/Colug0/signalk-opencpn-sync/compare/v0.1.1...v0.2.0) (2026-11-11)
+
+
+### Features
+
+* show received waypoints in freeboard-sk ([#8](https://github.com/Colug0/signalk-opencpn-sync/issues/8)) ([bad4544](https://github.com/Colug0/signalk-opencpn-sync/commit/bad4544bf8337d67533e9ff087625c0441f926d4))
+
 ## [0.1.1](https://github.com/Colug0/signalk-opencpn-sync/compare/v0.1.0...v0.1.1) (2026-11-10)
 
 
