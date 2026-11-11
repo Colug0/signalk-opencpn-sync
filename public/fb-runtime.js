@@ -44,8 +44,8 @@ async function main() {
     }
   }
 
-  // Show objects of one type: all at once with resources.show, one by one with
-  // route.show. Resolves to an error reason, or undefined when shown.
+  // Show objects of one type: with resources.show (any number of ids) or
+  // route.show (one route). Resolves to an error reason, or undefined when shown.
   const show = async (type, items) => {
     try {
       if (display) await bus.call('resources.show', { type, ids: items.map((i) => i.id) })
@@ -75,13 +75,20 @@ async function main() {
         const items = msg.items.filter(
           (i) => i && i.type === type && typeof i.id === 'string' && shown[key(i)] !== i.at
         )
-        const batches = display ? (items.length ? [items] : []) : items.map((i) => [i])
-        for (const batch of batches) {
-          const error = await show(type, batch)
-          if (!error) await remember(batch)
-          for (const item of batch) {
-            ws.send(JSON.stringify({ type: 'shown', resource: type, id: item.id, ok: !error, error }))
-          }
+        if (items.length === 0) continue
+        const report = (item, error) =>
+          ws.send(JSON.stringify({ type: 'shown', resource: type, id: item.id, ok: !error, error }))
+        // All at once where possible; if that fails, one by one, so one bad
+        // id does not keep the others from showing.
+        if (display && items.length > 1 && !(await show(type, items))) {
+          await remember(items)
+          for (const item of items) report(item)
+          continue
+        }
+        for (const item of items) {
+          const error = await show(type, [item])
+          if (!error) await remember([item])
+          report(item, error)
         }
       }
     }
